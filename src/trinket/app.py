@@ -5,7 +5,7 @@ from curio import spawn
 from autoroutes import Routes
 
 from trinket.handler import request_handler
-from trinket.http import HTTPStatus, HTTPError
+from trinket.http import HTTPCode, HTTPStatus, HTTPError
 from trinket.lifecycle import handler_events
 from trinket.proto import Application
 from trinket.request import Request
@@ -25,21 +25,28 @@ class Trinket(Application, dict):
         self.websockets = set()
         self.hooks = defaultdict(list)
 
+    async def on_error(self, http_code: HTTPCode, message: str=None):
+        """This async method allows the customization of errors.
+        If you need an async log or report or whatever, this is the
+        place to do it.
+        """
+        raise HTTPError(http_code, message)
+
     async def lookup(self, request: Request):
         payload, params = self.routes.match(request.path)
 
         if not payload:
-            raise HTTPError(HTTPStatus.NOT_FOUND, request.path)
+            return await self.on_error(404, request.path)
 
         # Uppercased in order to only consider HTTP verbs.
         handler = payload.get(request.method.upper(), None)
         if handler is None:
-            raise HTTPError(HTTPStatus.METHOD_NOT_ALLOWED)
+            return await self.on_error(HTTPStatus.METHOD_NOT_ALLOWED)
 
         # We check if the route is for a websocket handler.
         # If it is, we make sure we were asked for an upgrade.
         if payload.get('websocket', False) and not request.upgrade:
-            raise HTTPError(
+            return await self.on_error(
                 HTTPStatus.UPGRADE_REQUIRED,
                 'This is a websocket endpoint, please upgrade.')
 

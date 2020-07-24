@@ -4,9 +4,18 @@ Examples of usages.
 from trinket import Trinket, Response
 from trinket.response import file_iterator
 from trinket.extensions import logger
+from trinket.http import HTTPError
 
 
-bauble = logger(Trinket())
+class MyTrinket(Trinket):
+
+    async def on_error(self, http_code, message):
+        if http_code == 404:
+            message = "This route does not exist, i'm so sorry."
+        return await super().on_error(http_code, message)
+
+
+bauble = logger(MyTrinket())
 
 
 @bauble.route('/')
